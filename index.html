@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Web BLE Control</title>
+    <meta charset="utf-8">
+</head>
+<body>
+
+    <h1>ESP32 C3 Web BLE</h1>
+    <button id="connectButton">Connect to ESP32</button>
+    <p>Status: <span id="status">Disconnected</span></p>
+    <p>Value from ESP32: <span id="bleValue">N/A</span></p>
+    <br>
+    <button id="writeButton" disabled>Write 'Hello' to ESP32</button>
+
+    <script>
+        const connectButton = document.getElementById('connectButton');
+        const writeButton = document.getElementById('writeButton');
+        const statusSpan = document.getElementById('status');
+        const bleValueSpan = document.getElementById('bleValue');
+
+        const serviceUUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+        const charUUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+        
+        let bleDevice;
+        let bleCharacteristic;
+
+        // Function to handle notifications from the ESP32
+        function handleCharacteristicValueChanged(event) {
+            const value = event.target.value.getUint8(0);
+            bleValueSpan.textContent = value;
+            console.log('Received notification: ' + value);
+        }
+
+        // Connect button click handler
+        connectButton.addEventListener('click', async () => {
+            try {
+                statusSpan.textContent = 'Connecting...';
+                // Request a Bluetooth device that has the specified service UUID
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [serviceUUID] }]
+                });
+
+                // Connect to the device's GATT server
+                const server = await bleDevice.gatt.connect();
+
+                // Get the specified service
+                const service = await server.getPrimaryService(serviceUUID);
+
+                // Get the specified characteristic
+                bleCharacteristic = await service.getCharacteristic(charUUID);
+
+                // Start notifications
+                await bleCharacteristic.startNotifications();
+                bleCharacteristic.addEventListener('characteristicvaluechanged', handleCharacteristicValueChanged);
+
+                statusSpan.textContent = 'Connected! 🎉';
+                writeButton.disabled = false;
+                console.log('Connected to device.');
+
+            } catch (error) {
+                statusSpan.textContent = 'Error';
+                console.error('Connection failed:', error);
+            }
+        });
+        
+        // Write button click handler
+        writeButton.addEventListener('click', async () => {
+            try {
+                if (!bleCharacteristic) {
+                    console.error('Characteristic not available.');
+                    return;
+                }
+                const value = new TextEncoder().encode('Hello');
+                await bleCharacteristic.writeValue(value);
+                console.log('Wrote "Hello" to the characteristic.');
+            } catch (error) {
+                console.error('Write failed:', error);
+            }
+        });
+
+    </script>
+</body>
+</html>
